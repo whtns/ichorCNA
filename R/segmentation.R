@@ -10,14 +10,41 @@
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
-HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL, 
-    chrTrain = c(1:22), maxiter = 50, estimateNormal = TRUE, estimatePloidy = TRUE, 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param validInd PARAM_DESCRIPTION, Default: NULL
+#' @param dataType PARAM_DESCRIPTION, Default: 'copy'
+#' @param param PARAM_DESCRIPTION, Default: NULL
+#' @param chrTrain PARAM_DESCRIPTION, Default: c(1:22)
+#' @param maxiter PARAM_DESCRIPTION, Default: 50
+#' @param estimateNormal PARAM_DESCRIPTION, Default: TRUE
+#' @param estimatePloidy PARAM_DESCRIPTION, Default: TRUE
+#' @param estimatePrecision PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateSubclone PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateTransition PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateInitDist PARAM_DESCRIPTION, Default: TRUE
+#' @param logTransform PARAM_DESCRIPTION, Default: FALSE
+#' @param verbose PARAM_DESCRIPTION, Default: TRUE
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname HMMsegment
+
+HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
+    chrTrain = c(1:22), maxiter = 50, estimateNormal = TRUE, estimatePloidy = TRUE,
     estimatePrecision = TRUE, estimateSubclone = TRUE, estimateTransition = TRUE,
     estimateInitDist = TRUE, logTransform = FALSE, verbose = TRUE) {
   chr <- as.factor(seqnames(x[[1]]))
 	# setup columns for multiple samples #
 	dataMat <- as.matrix(as.data.frame(lapply(x, function(y) { mcols(x[[1]])[, dataType] })))
-	
+
 	# normalize by median and log data #
 	if (logTransform){
     dataMat <- apply(dataMat, 2, function(x){ log(x / median(x, na.rm = TRUE)) })
@@ -35,7 +62,7 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
   }
   if (!is.null(validInd)){
     chrInd <- chrInd & validInd
-  }  
+  }
 
 	if (is.null(param)){
 		param <- getDefaultParameters(dataMat[chrInd])
@@ -44,9 +71,9 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
 	#	param$n_0 <- .Machine$double.eps
 	#}
 	####### RUN EM ##########
-  convergedParams <- runEM(dataMat, chr, chrInd, param, maxiter, 
-      verbose, estimateNormal = estimateNormal, estimatePloidy = estimatePloidy, 
-      estimateSubclone = estimateSubclone, estimatePrecision = estimatePrecision, 
+  convergedParams <- runEM(dataMat, chr, chrInd, param, maxiter,
+      verbose, estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
+      estimateSubclone = estimateSubclone, estimatePrecision = estimatePrecision,
       estimateTransition = estimateTransition, estimateInitDist = estimateInitDist)
   # Calculate likelihood using converged params
  # S <- param$numberSamples
@@ -59,9 +86,9 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
   #   probs <- tdistPDF(dataMat, convergedParams$mus[ks, , iter], lambdasKS[ks, ], param$nu)
   #   py[ks, ] <- apply(probs, 1, prod) # multiply across samples for each data point to get joint likelihood.
   # }
-  # 
+  #
   viterbiResults <- runViterbi(convergedParams, chr)
-  
+
   # setup columns for multiple samples #
   segs <- segmentData(x, validInd, viterbiResults$states, convergedParams)
   #output$segs <- processSegments(output$segs, chr, start(x), end(x), x$DataToUse)
@@ -79,37 +106,53 @@ HMMsegment <- function(x, validInd = NULL, dataType = "copy", param = NULL,
     id <- names(x)[s]
     copyNumber <- param$jointCNstates[viterbiResults$state, s]
     subclone.status <- param$jointSCstatus[viterbiResults$state, s]
-  	cnaList[[id]] <- data.frame(cbind(sample = as.character(id), 
-                  chr = as.character(seqnames(x[[s]])),	
-                  start = start(x[[s]]), end = end(x[[s]]), 
+  	cnaList[[id]] <- data.frame(cbind(sample = as.character(id),
+                  chr = as.character(seqnames(x[[s]])),
+                  start = start(x[[s]]), end = end(x[[s]]),
                   copy.number = copyNumber,
-                  event = names[copyNumber + 1], 
+                  event = names[copyNumber + 1],
                   logR = round(log2(exp(dataMat[,s])), digits = 4),
                   subclone.status = as.numeric(subclone.status)
   	))
-  
-    cnaList[[id]] <- transform(cnaList[[id]], 
+
+    cnaList[[id]] <- transform(cnaList[[id]],
                               start = as.integer(as.character(start)),
-                              end = as.integer(as.character(end)), 
+                              end = as.integer(as.character(end)),
                               copy.number = as.numeric(copy.number),
                               logR = as.numeric(as.character(logR)),
                               subclone.status = as.numeric(subclone.status))
-  
+
   	## order by chromosome ##
   	chrOrder <- unique(chr) #c(1:22,"X","Y")
   	cnaList[[id]] <- cnaList[[id]][order(match(cnaList[[id]][, "chr"],chrOrder)),]
   	## remove MT chr ##
     cnaList[[id]] <- cnaList[[id]][cnaList[[id]][,"chr"] %in% chrOrder, ]
-    
+
     ## segment mean loge -> log2
     #segs[[s]]$median.logR <- log2(exp(segs[[s]]$median.logR))
     segs[[s]]$median <- log2(exp(segs[[s]]$median))
     ## add subclone status
     segs[[s]]$subclone.status <-  param$jointSCstatus[segs[[s]]$state, s]
-  }	
+  }
   convergedParams$segs <- segs
   return(list(cna = cnaList, results = convergedParams, viterbiResults = viterbiResults))
 }
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param K PARAM_DESCRIPTION
+#' @param e PARAM_DESCRIPTION
+#' @param strength PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname getTransitionMatrix
 
 getTransitionMatrix <- function(K, e, strength){
   A <- matrix(0, K, K)
@@ -122,6 +165,27 @@ getTransitionMatrix <- function(K, e, strength){
   dirPrior <- A * strength[1]
   return(list(A=A, dirPrior=dirPrior))
 }
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param maxCN PARAM_DESCRIPTION, Default: 5
+#' @param ct.sc PARAM_DESCRIPTION, Default: NULL
+#' @param ploidy PARAM_DESCRIPTION, Default: 2
+#' @param e PARAM_DESCRIPTION, Default: 0.9999999
+#' @param e.sameState PARAM_DESCRIPTION, Default: 10
+#' @param strength PARAM_DESCRIPTION, Default: 1e+07
+#' @param includeHOMD PARAM_DESCRIPTION, Default: FALSE
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname getDefaultParameters
 
 getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9999999, e.sameState = 10, strength = 10000000, includeHOMD = FALSE){
   if (includeHOMD){
@@ -138,7 +202,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
 		sp_0 = 0.5, alphaSp = 2, betaSp = 2,
 		lambda = as.matrix(rep(100, length(ct)+length(ct.sc)), ncol=1),
 		nu = 2.1,
-		kappa = rep(75, length(ct)), 
+		kappa = rep(75, length(ct)),
 		alphaLambda = 5
 	)
 	K <- length(param$ct)
@@ -146,28 +210,28 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
 	if (!is.null(dim(x))){ # multiple samples (columns)
     param$numberSamples <- ncol(x)
     #betaLambdaVal <- ((apply(x, 2, function(x){ sd(diff(x), na.rm=TRUE) }) / sqrt(length(param$ct))) ^ 2)
-    betaLambdaVal <- ((apply(x, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)   
+    betaLambdaVal <- ((apply(x, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
 	}else{ # only 1 sample
 	  param$numberSamples <- 1
 	  betaLambdaVal <- ((sd(x, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
 	}
 	param$betaLambda <- matrix(betaLambdaVal, ncol = param$numberSamples, nrow = length(param$ct), byrow = TRUE)
   param$alphaLambda <- rep(param$alphaLambda, K)
-  
+
 	# increase prior precision for -1, 0, 1 copies at ploidy
 	#param$lambda[param$ct %in% c(1,2,3)] <- 1000 # HETD, NEUT, GAIN
-	#param$lambda[param$ct == 4] <- 100 
+	#param$lambda[param$ct == 4] <- 100
 	#param$lambda[which.max(param$ct)] <- 50 #highest CN
 	#param$lambda[param$ct == 0] <- 1 #HOMD
 	S <- param$numberSamples
 	logR.var <- 1 / ((apply(x, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
 	if (!is.null(dim(x))){ # multiple samples (columns)
 		param$lambda <- matrix(logR.var, nrow=K, ncol=S, byrow=T, dimnames=list(c(),colnames(x)))
-	}else{ # only 1 sample    
+	}else{ # only 1 sample
 		#logR.var <- 1 / ((sd(x, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
     param$lambda <- matrix(logR.var, length(param$ct))
-    param$lambda[param$ct %in% c(2)] <- logR.var 
-    param$lambda[param$ct %in% c(1,3)] <- logR.var 
+    param$lambda[param$ct %in% c(2)] <- logR.var
+    param$lambda[param$ct %in% c(1,3)] <- logR.var
     param$lambda[param$ct >= 4] <- logR.var / 5
     param$lambda[param$ct == max(param$ct)] <- logR.var / 15
     param$lambda[param$ct.sc.status] <- logR.var / 10
@@ -177,7 +241,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
   param$jointSCstatus <- expand.grid(rep(list(param$ct.sc.status), S))
   colnames(param$jointCNstates) <- paste0("Sample.", 1:param$numberSamples)
   colnames(param$jointSCstatus) <- paste0("Sample.", 1:param$numberSamples)
-  
+
 	# Initialize transition matrix to the prior
 	txn <- getTransitionMatrix(K ^ S, e, strength)
   ## set higher transition probs for same CN states across samples ##
@@ -185,7 +249,7 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
 	#apply(param$jointCNstates, 1, function(x){ sum(duplicated(as.numeric(x))) > 0 })
   cnStateDiff <- apply(param$jointCNstates, 1, function(x){ (abs(max(x) - min(x)))})
   if (e.sameState > 0 & S > 1){
-		txn$A[, cnStateDiff == 0] <- txn$A[, cnStateDiff == 0] * e.sameState * K 
+		txn$A[, cnStateDiff == 0] <- txn$A[, cnStateDiff == 0] * e.sameState * K
 		txn$A[, cnStateDiff >= 3] <- txn$A[, cnStateDiff >=3]  / e.sameState / K
 	}
   for (i in 1:nrow(txn$A)){
@@ -197,11 +261,11 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
   }
   txn$A <- normalize(txn$A)
 	param$A <- txn$A
-	param$dirPrior <- txn$A * strength[1] 
+	param$dirPrior <- txn$A * strength[1]
   param$A[, param$ct.sc.status] <- param$A[, param$ct.sc.status] / 10
   param$A <- normalize(param$A)
   param$dirPrior[, param$ct.sc.status] <- param$dirPrior[, param$ct.sc.status] / 10
-  
+
   if (includeHOMD){
     K <- length(param$ct)
     param$A[1, 2:K] <- param$A[1, 2:K] * 1e-5; param$A[2:K, 1] <- param$A[2:K, 1] * 1e-5;
@@ -213,11 +277,28 @@ getDefaultParameters <- function(x, maxCN = 5, ct.sc = NULL, ploidy = 2, e = 0.9
   param$kappa[cnStateDiff == 0] <- param$kappa[cnStateDiff == 0] + 125
 	param$kappa[cnStateDiff >=3] <- param$kappa[cnStateDiff >=3] - 50
 	param$kappa[which(rowSums(param$jointCNstates==2) == S)] <- 800
-  
+
   return(param)
 }
 
 
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param dataGR PARAM_DESCRIPTION
+#' @param validInd PARAM_DESCRIPTION
+#' @param states PARAM_DESCRIPTION
+#' @param convergedParams PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname segmentData
 
 segmentData <- function(dataGR, validInd, states, convergedParams){
   if (sum(convergedParams$param$ct == 0) ==0){
@@ -247,7 +328,7 @@ segmentData <- function(dataGR, validInd, states, convergedParams){
     rleValues <- unlist(rleResults[, "values"])
     sampleDF <- as.data.frame(dataIn)
     numSegs <- length(rleLengths)
-    segs <- as.data.frame(matrix(NA, ncol = 7, nrow = numSegs, 
+    segs <- as.data.frame(matrix(NA, ncol = 7, nrow = numSegs,
                    dimnames = list(c(), c("chr", "start", "end", "state", "event", "median", "copy.number"))))
     prevInd <- 0
     for (j in 1:numSegs){
@@ -270,13 +351,28 @@ segmentData <- function(dataGR, validInd, states, convergedParams){
         }
       }else{ # segDF contains 2 different chromosomes
         print(j)
-      }                                      
+      }
     }
     segList[[id]] <- segs
   }
   return(segList)
 }
-    
+
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param convergedParams PARAM_DESCRIPTION
+#' @param chr PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname runViterbi
 
 runViterbi <- function(convergedParams, chr){
   message("runViterbi: Segmenting and classifying")
@@ -305,6 +401,20 @@ runViterbi <- function(convergedParams, chr){
 }
 
 # Normalize a given array to sum to 1
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param A PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname normalize
+
 normalize <- function(A) {
 	vectorNormalize <- function(x){ x / (sum(x) + (sum(x) == 0)) }
 	if (length(dim(A)) < 2){

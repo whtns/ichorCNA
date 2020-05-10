@@ -2,3 +2,5 @@
 ^.travis\.yml$
 scripts/
 LICENSE
+^ichorCNA\.Rproj$
+^\.Rproj\.user$

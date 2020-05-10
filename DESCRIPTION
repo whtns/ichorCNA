@@ -11,3 +11,4 @@ Imports: HMMcopy (>= 1.14.0), plyr (>= 1.8.4), GenomicRanges (>= 1.36.0), Genome
 Description: A tool for estimating the fraction of tumor in ultra-low-pass whole genome sequencing (ULP-WGS) of cell-free DNA.
 License: GPL-3
 URL: https://github.com/broadinstitute/ichorCNA
+RoxygenNote: 7.1.0

@@ -12,11 +12,29 @@
 ##################################################
 ###### FUNCTION TO GET OUTPUT HMM RESULTS ########
 ##################################################
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param cna PARAM_DESCRIPTION
+#' @param segs PARAM_DESCRIPTION
+#' @param results PARAM_DESCRIPTION
+#' @param patientID PARAM_DESCRIPTION, Default: NULL
+#' @param outDir PARAM_DESCRIPTION, Default: '.'
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname outputHMM
+
 outputHMM <- function(cna, segs, results, patientID = NULL, outDir = "."){
   names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP",paste0(rep("HLAMP", 8), 2:25))
 
   S <- results$param$numberSamples
-  
+
   segout <- NULL
   shuffle <- NULL
   if (is.null(patientID)){
@@ -26,21 +44,21 @@ outputHMM <- function(cna, segs, results, patientID = NULL, outDir = "."){
   for (s in 1:S){
     id <- names(cna)[s]
     bin_size <- as.numeric(cna[[s]][1,"end"]) - as.numeric(cna[[s]][1,"start"]) + 1
-    markers <- (segs[[s]]$end - segs[[s]]$start + 1) / bin_size  
+    markers <- (segs[[s]]$end - segs[[s]]$start + 1) / bin_size
     segTmp <- cbind(sample = as.character(id), segs[[s]][, 1:3],
                     event = names[segs[[s]]$copy.number + 1],
-                    copy.number = segs[[s]]$copy.number, 
+                    copy.number = segs[[s]]$copy.number,
                     bins = markers, median = segs[[s]]$median,
                     subclone.status=segs[[s]]$subclone.status,
                     segs[[s]][, 9:ncol(segs[[s]])])
     segout <- rbind(segout, segTmp[, 1:8])
     ### Re-ordering the columns for output ###
     shuffleTmp <- segTmp[, c(1, 2, 3, 4, 7, 8, 6, 5, 9:ncol(segTmp))]
-    colnames(shuffleTmp)[1:9] <- c("ID", "chrom", "start", "end", 
+    colnames(shuffleTmp)[1:9] <- c("ID", "chrom", "start", "end",
                               "num.mark", "seg.median.logR", "copy.number", "call", "subclone.status")
-    shuffle <- rbind(shuffle, shuffleTmp) 
+    shuffle <- rbind(shuffle, shuffleTmp)
   }
-  
+
   shu_out = paste(outDir,"/", patientID,".seg.txt",sep="")
   seg_out = paste(outDir,"/", patientID,".seg",sep="")
   message("Writing segments to ", seg_out)
@@ -64,6 +82,21 @@ outputHMM <- function(cna, segs, results, patientID = NULL, outDir = "."){
   write.table(cnaout, file = cna_out, quote = FALSE, sep = "\t", row.names = FALSE)
 }
 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param hmmResults PARAM_DESCRIPTION
+#' @param file PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname outputParametersToFile
+
 outputParametersToFile <- function(hmmResults, file){
   S <- hmmResults$results$param$numberSamples
   x <- hmmResults$results
@@ -77,12 +110,12 @@ outputParametersToFile <- function(hmmResults, file){
   for (s in 1:S){
     id <- names(hmmResults$cna)[s]
     write.table(id, file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
-    write.table(paste0("Gender:\t", x$gender), file = fc, col.names = FALSE, 
+    write.table(paste0("Gender:\t", x$gender), file = fc, col.names = FALSE,
                 row.names = FALSE, quote = FALSE, sep = "\t")
-    write.table(paste0("Tumor Fraction:\t", signif(1 - x$n[s, i], digits = 4)), file = fc, col.names = FALSE, 
+    write.table(paste0("Tumor Fraction:\t", signif(1 - x$n[s, i], digits = 4)), file = fc, col.names = FALSE,
                 row.names = FALSE, quote = FALSE, sep = "\t")
     ploidy <- (1 - x$n[i]) * x$phi[i] + x$n[i] * 2
-    write.table(paste0("Ploidy:\t", signif(x$phi[s, i], digits = 4)), file = fc, col.names = FALSE, 
+    write.table(paste0("Ploidy:\t", signif(x$phi[s, i], digits = 4)), file = fc, col.names = FALSE,
                 row.names = FALSE, quote = FALSE, sep = "\t")
    	subcloneGenomeFrac <- sum(hmmResults.cor$cna[[s]]$subclone.status) / nrow(hmmResults.cor$cna[[s]])
    	subcloneCNAFrac <- sum(hmmResults.cor$cna[[s]]$subclone.status) / sum(hmmResults.cor$cna[[s]]$copy.num != 2)
@@ -92,8 +125,8 @@ outputParametersToFile <- function(hmmResults, file){
    	}else{
    		scFrac <- signif(scFrac, digits = 4)
    	}
-    #if (sum(x$param$ct.sc.status) != 0){    	
-      write.table(paste0("Subclone Fraction:\t", scFrac), file = fc, col.names = FALSE, 
+    #if (sum(x$param$ct.sc.status) != 0){
+      write.table(paste0("Subclone Fraction:\t", scFrac), file = fc, col.names = FALSE,
                   row.names = FALSE, quote = FALSE, sep = "\t")
       write.table(paste0("Fraction Genome Subclonal:\t", signif(subcloneGenomeFrac, digits = 4)), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
       write.table(paste0("Fraction CNA Subclonal:\t", signif(subcloneCNAFrac, digits = 4)), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
@@ -103,18 +136,18 @@ outputParametersToFile <- function(hmmResults, file){
     }else{
     	coverage <- signif(coverage, digits = 4)
     }
-		write.table(paste0("Coverage:\t", coverage), file = fc, col.names = FALSE, 
+		write.table(paste0("Coverage:\t", coverage), file = fc, col.names = FALSE,
 								row.names = FALSE, quote = FALSE, sep = "\t")
-	
+
     if (!is.null(x$chrYCov)){
-      write.table(paste0("ChrY coverage fraction:\t", signif(x$chrYCov[s], digits = 4)), file = fc, col.names = FALSE, 
+      write.table(paste0("ChrY coverage fraction:\t", signif(x$chrYCov[s], digits = 4)), file = fc, col.names = FALSE,
                   row.names = FALSE, quote = FALSE, sep = "\t")
     }
     if (!is.null(x$chrXMedian)){
-      write.table(paste0("ChrX median log ratio:\t", signif(x$chrXMedian[s], digits = 4)), file = fc, col.names = FALSE, 
+      write.table(paste0("ChrX median log ratio:\t", signif(x$chrXMedian[s], digits = 4)), file = fc, col.names = FALSE,
                   row.names = FALSE, quote = FALSE, sep = "\t")
     }
-    write.table(paste0("Student's t mean: ", paste0(signif(x$mus[,s,i], digits = 2), collapse = ", ")), 
+    write.table(paste0("Student's t mean: ", paste0(signif(x$mus[,s,i], digits = 2), collapse = ", ")),
                 file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
     write.table(paste0("Student's t precision: ", paste0(signif(x$lambdas[,s,i], digits = 2), collapse = ", ")), file = fc, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
     write.table(paste0("Gamma Rate Init:\t", signif(hmmResults.cor$results$param$betaLambda[1], digits=2)), file=fc, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t")

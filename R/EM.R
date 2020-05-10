@@ -10,21 +10,47 @@
 # description: Hidden Markov model (HMM) to analyze Ultra-low pass whole genome sequencing (ULP-WGS) data.
 # This script is the main script to run the HMM.
 
-runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE, 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param copy PARAM_DESCRIPTION
+#' @param chr PARAM_DESCRIPTION
+#' @param chrTrain PARAM_DESCRIPTION
+#' @param param PARAM_DESCRIPTION
+#' @param maxiter PARAM_DESCRIPTION
+#' @param verbose PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateNormal PARAM_DESCRIPTION, Default: TRUE
+#' @param estimatePloidy PARAM_DESCRIPTION, Default: TRUE
+#' @param estimatePrecision PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateTransition PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateInitDist PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateSubclone PARAM_DESCRIPTION, Default: TRUE
+#' @param likChangeConvergence PARAM_DESCRIPTION, Default: 0.001
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname runEM
+
+runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
 									estimateNormal = TRUE, estimatePloidy = TRUE, estimatePrecision = TRUE,
                   estimateTransition = TRUE, estimateInitDist = TRUE, estimateSubclone = TRUE,
                   likChangeConvergence = 1e-3) {
-  
+
   if (nrow(copy) != length(chr) || nrow(copy) != length(chrTrain)) {
     stop("runEM: Length of inputs do not match for one of: copy, chr, chrTrain")
   }
-  
+
   if (is.null(param$ct) || is.null(param$lambda) || is.null(param$nu) ||
       is.null(param$kappa)) {
     stop("runEM: Parameter missing, ensure all parameters exist as columns in",
          "data frame: ct, lambda, nu, kappa")
   }
-  
+
   S <- param$numberSamples
   K <- length(param$ct)
   Z <- sum(param$ct.sc) #number of subclonal states (# repeated copy number states)
@@ -41,9 +67,9 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
   converged <- FALSE               # Flag for convergence
   Zcounts <- matrix(0, KS, KS)
   loglik <- rep(0, maxiter)
-  
+
   ptmTotal <- proc.time() # start total timer
-  
+
   # SET UP
   # Set up the chromosome indices and make cell array of chromosome indicies
   chrs <- levels(chr)              # WARNING, gets resorted here...
@@ -52,7 +78,7 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
   for(i in 1:length(chrs)) {
     chrsI[i] <- list(which(chr == chrs[i]))
   }
-  
+
   # INITIALIZATION
   if (verbose) { message("runEM: Initialization") }
   i <- 1
@@ -63,25 +89,25 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
   lambdas[, , i] <- param$lambda #matrix(param$lambda, nrow = K, ncol = S, byrow = TRUE)
   lambdasKS <- as.matrix(expand.grid(as.data.frame(lambdas[, , i]))) #as.matrix(expand.grid(rep(list(param$lambda), S)))
   mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
-  
+
   # Likelihood #
   for (ks in 1:KS) {
     probs <- tdistPDF(copy, mus[ks, , i], lambdasKS[ks, ], param$nu)
     py[ks, ] <- apply(probs, 1, prod) # multiply across samples for each data point to get joint likelihood.
   }
-  
+
   # initialize transition prior #
   A <- normalize(param$A)
   A_prior <- A
   dirPrior <- param$dirPrior
-  
+
   loglik[i] <- -Inf
-  
+
   while(!converged && (i < maxiter)) {
     ptm <- proc.time()
     #if (verbose) { message(paste("runEM: EM iteration:", i, "Log likelihood:", loglik[i])) }
     i <- i + 1
-    
+
     ################ E-step ####################
     if (verbose) { message("runEM iter", i-1 , ": Expectation") }
     Zcounts <- matrix(0, KS, KS)
@@ -94,7 +120,7 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
         Zcounts <- Zcounts + t(colSums(aperm(output$xi, c(3, 2, 1))))
       }
     }
-    
+
     ## marginalize rho by sample ##
     #rhoS <- list()
     #for (s in 1:S){
@@ -103,22 +129,22 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
     #    rhoS[[s]][k, ] <- colSums(rho[param$jointCNstates[, s] == k, chrTrain])
     #  }
     #}
-    
+
     ################ M-step ####################
     if (verbose) { message("runEM iter", i-1 , ": Maximization") }
-    output <- estimateParamsMap(copy[chrTrain, ], n[, i - 1], sp[, i - 1], phi[, i - 1], 
+    output <- estimateParamsMap(copy[chrTrain, ], n[, i - 1], sp[, i - 1], phi[, i - 1],
                                 lambdas[, , i - 1], piG[, i - 1], A, param,
-                                rho[, chrTrain], Zcounts, 
+                                rho[, chrTrain], Zcounts,
                                 estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                                 estimatePrecision = estimatePrecision, estimateTransition = estimateTransition,
                                 estimateInitDist = estimateInitDist, estimateSubclone = estimateSubclone)
     if (verbose == TRUE) {
       for (s in 1:S){
-        message("Sample", s, " n=", signif(output$n[s], digits = 4), ", sp=", signif(output$sp[s], digits = 4), 
-                ", phi=", signif(output$phi[s], digits = 4), 
+        message("Sample", s, " n=", signif(output$n[s], digits = 4), ", sp=", signif(output$sp[s], digits = 4),
+                ", phi=", signif(output$phi[s], digits = 4),
                 ", lambda=", paste0(signif(output$lambda[, s], digits=5), collapse = ","),
                 ", F=", signif(output$F, digits=4))
-      }     
+      }
     }
     n[, i] <- output$n
     sp[, i] <- output$sp
@@ -127,7 +153,7 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
     piG[, i] <- output$piG
     A <- output$A
     estF <- output$F
-    
+
     # Recalculate the likelihood
     lambdasKS <- as.matrix(expand.grid(as.data.frame(lambdas[, , i])))
     mus[, , i] <- as.matrix(get2and3ComponentMixture(param$jointCNstates, param$jointSCstatus, n[, i], sp[, i], phi[, i]))
@@ -135,18 +161,18 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
       probs <- tdistPDF(copy, mus[ks, , i], lambdasKS[ks, ], param$nu)
       py[ks, ] <- apply(probs, 1, prod) # multiply across samples for each data point to get joint likelihood.
     }
-    
-    prior <- priorProbs(n[, i], sp[, i], phi[, i], lambdas[, , i], piG[, i], A, param, 
+
+    prior <- priorProbs(n[, i], sp[, i], phi[, i], lambdas[, , i], piG[, i], A, param,
                         estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                         estimatePrecision = estimatePrecision, estimateTransition = estimateTransition,
                         estimateInitDist = estimateInitDist, estimateSubclone = estimateSubclone)
-    
-    
-    # check converence 
+
+
+    # check converence
     loglik[i] <- loglik[i] + prior$prior
     elapsedTime <- proc.time() - ptm
-    if (verbose) { 
-      message(paste("runEM iter", i-1, " Log likelihood:", loglik[i])) 
+    if (verbose) {
+      message(paste("runEM iter", i-1, " Log likelihood:", loglik[i]))
       message("runEM iter", i-1, " Time: ", format(elapsedTime[3] / 60, digits = 2), " min.")
     }
     if ((abs(loglik[i] - loglik[i - 1]) / abs(loglik[i])) < likChangeConvergence){#} && loglik[i] > loglik[i - 1]) {
@@ -159,24 +185,24 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
       converged = 1
     }
   }
-  
+
   if (converged) {
     # Perform one last round of E-step to get latest responsibilities
     #E-step
-    if (verbose) { message("runEM iter", i-1 ,": Re-calculating responsibilties from converged parameters.") }   
+    if (verbose) { message("runEM iter", i-1 ,": Re-calculating responsibilties from converged parameters.") }
     for (j in 1:length(chrsI)) {
       I <- chrsI[[j]]
       output <- .Call("forward_backward", piG[, i], A, py[, I], PACKAGE = "HMMcopy")
       rho[, I] <- output$rho
     }
   }
-  
+
   if (verbose) {
     totalTime <- proc.time() - ptmTotal
     message("runEM: Using optimal parameters from iter", i-1)
     message("runEM: Total elapsed time: ", format(totalTime[3] / 60, digits = 2), "min.")
   }
-  
+
   #### Return parameters ####
   n <- n[, 1:i, drop=FALSE]
   sp <- sp[, 1:i, drop=FALSE]
@@ -185,7 +211,7 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
   lambdas <- lambdas[, , 1:i, drop=FALSE]
   piG <- piG[, 1:i, drop=FALSE]
   loglik = loglik[1:i]
-  
+
   output <- vector('list', 0);
   output$n <- n
   output$sp <- sp
@@ -199,9 +225,27 @@ runEM <- function(copy, chr, chrTrain, param, maxiter, verbose = TRUE,
   output$param <- param
   output$py <- py
   output$iter <- i
-  
+
   return(output)
 }
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param ct PARAM_DESCRIPTION
+#' @param ct.sc.status PARAM_DESCRIPTION
+#' @param n PARAM_DESCRIPTION
+#' @param sp PARAM_DESCRIPTION
+#' @param phi PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname get2and3ComponentMixture
 
 get2and3ComponentMixture <- function(ct, ct.sc.status, n, sp, phi){
   S <- length(n)
@@ -209,13 +253,29 @@ get2and3ComponentMixture <- function(ct, ct.sc.status, n, sp, phi){
   mu <- matrix(NA, nrow = nrow(ct), ncol = ncol(ct))
   for (s in 1:S){
     #subclonal 3 component
-    mu[ct.sc.status[, s] == TRUE, s] <- (((1 - n[s]) * (1 - sp[s]) * ct[ct.sc.status[, s] == TRUE, s]) + 
+    mu[ct.sc.status[, s] == TRUE, s] <- (((1 - n[s]) * (1 - sp[s]) * ct[ct.sc.status[, s] == TRUE, s]) +
                                            ((1 - n[s]) * sp[s] * cn) + (n[s] * cn)) / ((1 - n[s]) * phi[s] + n[s] * cn)
     #clonal 2 component
     mu[ct.sc.status[ ,s] == FALSE, s] <- ((1 - n[s]) * ct[ct.sc.status[, s] == FALSE, s] + n[s] * cn) / ((1 - n[s]) * phi[s] + n[s] * cn)
   }
   return(log(mu))
 }
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param ct PARAM_DESCRIPTION
+#' @param n PARAM_DESCRIPTION
+#' @param phi PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname get2ComponentMixture
 
 get2ComponentMixture <- function(ct, n, phi){
   if (length(phi) > 1 && length(phi) != length(n)){
@@ -238,6 +298,21 @@ get2ComponentMixture <- function(ct, n, phi){
 # Dirichlet probability density function, returns the probability of vector
 # x under the Dirichlet distribution with parameter vector alpha
 # Author: David Ross http://www.cs.toronto.edu/~dross/code/dirichletpdf.m
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param alpha PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname dirichletpdf
+
 dirichletpdf <- function(x, alpha) {
   if (any(x < 0)) {
     return(0);
@@ -250,6 +325,21 @@ dirichletpdf <- function(x, alpha) {
   return(p)
 }
 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param k PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname dirichletpdflog
+
 dirichletpdflog <- function(x, k) {
   c <- lgamma(sum(k, na.rm = TRUE)) - sum(lgamma(k), na.rm = TRUE)  #normalizing constant
   l <- sum((k - 1) * log(x), na.rm = TRUE)  #likelihood
@@ -257,17 +347,66 @@ dirichletpdflog <- function(x, k) {
   return(y)
 }
 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param a PARAM_DESCRIPTION
+#' @param b PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname gammapdflog
+
 gammapdflog <- function(x, a, b) { #rate and scale parameterization
-  c <- a * log(b) - lgamma(a)  # normalizing constant  
-  l <- (a - 1) * log(x) + (-b * x)  #likelihood  
+  c <- a * log(b) - lgamma(a)  # normalizing constant
+  l <- (a - 1) * log(x) + (-b * x)  #likelihood
   y <- c + l
   return(y)
 }
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param a PARAM_DESCRIPTION
+#' @param b PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname betapdflog
 
 betapdflog <- function(x, a, b) {
   y = -lbeta(a, b) + (a - 1) * log(x) + (b - 1) * log(1 - x)
   return(y)
 }
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param mu PARAM_DESCRIPTION
+#' @param lambda PARAM_DESCRIPTION
+#' @param nu PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname tdistPDF
 
 tdistPDF <- function(x, mu, lambda, nu) {
   S <- ncol(x)
@@ -288,10 +427,40 @@ tdistPDF <- function(x, mu, lambda, nu) {
 }
 
 
-estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev, A_prev, 
-                              params, rho, Zcounts, 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param D PARAM_DESCRIPTION
+#' @param n_prev PARAM_DESCRIPTION
+#' @param sp_prev PARAM_DESCRIPTION
+#' @param phi_prev PARAM_DESCRIPTION
+#' @param lambda_prev PARAM_DESCRIPTION
+#' @param pi_prev PARAM_DESCRIPTION
+#' @param A_prev PARAM_DESCRIPTION
+#' @param params PARAM_DESCRIPTION
+#' @param rho PARAM_DESCRIPTION
+#' @param Zcounts PARAM_DESCRIPTION
+#' @param estimateNormal PARAM_DESCRIPTION, Default: TRUE
+#' @param estimatePloidy PARAM_DESCRIPTION, Default: TRUE
+#' @param estimatePrecision PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateInitDist PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateTransition PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateSubclone PARAM_DESCRIPTION, Default: TRUE
+#' @param verbose PARAM_DESCRIPTION, Default: TRUE
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname estimateParamsMap
+
+estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev, A_prev,
+                              params, rho, Zcounts,
                               estimateNormal = TRUE, estimatePloidy = TRUE,
-                              estimatePrecision = TRUE, estimateInitDist = TRUE, 
+                              estimatePrecision = TRUE, estimateInitDist = TRUE,
                               estimateTransition = TRUE, estimateSubclone = TRUE,
                               verbose = TRUE) {
   KS <- nrow(rho)
@@ -303,7 +472,7 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
   intervalSubclone <- c(1e-6, 1 - 1e-6)
   intervalPhi <- c(.Machine$double.eps, 10)
   intervalLambda <- c(1e-5, 1e4)
-  
+
   # initialize params to be estimated
   n_hat <- n_prev
   sp_hat <- sp_prev
@@ -311,7 +480,7 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
   lambda_hat <- lambda_prev
   pi_hat <- pi_prev
   A_hat <- A_prev
-  
+
   # Update transition matrix A
   if (estimateTransition){
     for (k in 1:KS) {
@@ -323,13 +492,13 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
   if (estimateInitDist){
     pi_hat <- estimateMixWeightsParamMap(rho, params$kappa)
   }
-  
-  # map estimate for normal 
+
+  # map estimate for normal
   if (estimateNormal){
     suppressWarnings(
-      estNorm <- optim(n_prev, fn = completeLikelihoodFun, pType = rep("n", S), n = n_prev, sp = sp_prev, phi = phi_prev, 
+      estNorm <- optim(n_prev, fn = completeLikelihoodFun, pType = rep("n", S), n = n_prev, sp = sp_prev, phi = phi_prev,
                        lambda = lambda_prev, piG = pi_hat, A = A_hat,
-                       params = params, D = D, rho = rho, Zcounts = Zcounts, 
+                       params = params, D = D, rho = rho, Zcounts = Zcounts,
                        estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                        estimatePrecision = estimatePrecision, estimateInitDist = estimateInitDist,
                        estimateTransition = estimateTransition, estimateSubclone = estimateSubclone,
@@ -341,9 +510,9 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
   }
   if (estimateSubclone){
     suppressWarnings(
-      estSubclone <- optim(sp_prev, fn = completeLikelihoodFun, pType = rep("sp", S), n = n_hat, sp = sp_prev, 
+      estSubclone <- optim(sp_prev, fn = completeLikelihoodFun, pType = rep("sp", S), n = n_hat, sp = sp_prev,
                            phi = phi_prev, lambda = lambda_prev, piG = pi_hat, A = A_hat,
-                           params = params, D = D, rho = rho, Zcounts = Zcounts, 
+                           params = params, D = D, rho = rho, Zcounts = Zcounts,
                            estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                            estimatePrecision = estimatePrecision, estimateInitDist = estimateInitDist,
                            estimateTransition = estimateTransition, estimateSubclone = estimateSubclone,
@@ -355,9 +524,9 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
   }
   if (estimatePloidy){
     suppressWarnings(
-      estPhi <- optim(phi_prev, fn = completeLikelihoodFun, pType = rep("phi", length(phi_prev)), n = n_hat, sp = sp_hat, 
+      estPhi <- optim(phi_prev, fn = completeLikelihoodFun, pType = rep("phi", length(phi_prev)), n = n_hat, sp = sp_hat,
                       phi = phi_prev, lambda = lambda_prev, piG = pi_hat, A = A_hat,
-                      params = params, D = D, rho = rho, Zcounts = Zcounts, 
+                      params = params, D = D, rho = rho, Zcounts = Zcounts,
                       estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                       estimatePrecision = estimatePrecision, estimateInitDist = estimateInitDist,
                       estimateTransition = estimateTransition, estimateSubclone = estimateSubclone,
@@ -371,7 +540,7 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
     suppressWarnings(
       estLambda <- optim(c(lambda_prev), fn = completeLikelihoodFun, pType = rep("lambda", K*S), n = n_hat, sp = sp_hat,
                          phi = phi_hat, lambda = lambda_prev, piG = pi_hat, A = A_hat,
-                         params = params, D = D, rho = rho, Zcounts = Zcounts, 
+                         params = params, D = D, rho = rho, Zcounts = Zcounts,
                          estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                          estimatePrecision = estimatePrecision, estimateInitDist = estimateInitDist,
                          estimateTransition = estimateTransition, estimateSubclone = estimateSubclone,
@@ -380,20 +549,20 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
     )
     lambda_hat <- matrix(estLambda$par, ncol = S, byrow = FALSE)
   }
-  
+
   #}
   #}
-  
-  #map estimate for phi (ploidy) 
+
+  #map estimate for phi (ploidy)
   # if (estimatePloidy) {
   #    suppressWarnings(
-  #   estPhi <- optim(phi_prev, fn = phiLikelihoodFun, n = n_prev, lambda = lambda_prev, 
+  #   estPhi <- optim(phi_prev, fn = phiLikelihoodFun, n = n_prev, lambda = lambda_prev,
   #  								params = params, D = D, rho = rhoS, method = "L-BFGS-B",
   #                 control = list(fnscale = -1, ndeps = 1e-5), lower = intervalPhi[1])#, upper = intervalPhi[2])
   #  )
   #  phi_hat <- estPhi$par
   #}
-  
+
   # map estimate for lambda (Student's t precision)
   # if (estimatePrecision){
   #for (s in 1:S){
@@ -401,19 +570,19 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
   #  paramsS$betaLambda <- paramsS$betaLambda[s]
   #  for (k in 1:K){
   #		  suppressWarnings(
-  #	  estLambda <- optim(lambda_prev[k, s], fn = lambdaLikelihoodFun, n = n_prev[s], phi = phi_prev, 
+  #	  estLambda <- optim(lambda_prev[k, s], fn = lambdaLikelihoodFun, n = n_prev[s], phi = phi_prev,
   #										params = paramsS, D = D[, s], rho = rhoS[[s]][k, , drop = FALSE], k = k,
   #										control = list(fnscale = -1), method = "L-BFGS-B",
   #										lower = intervalLambda[1])#, upper = intervalLambda[2])
-  
-  
+
+
   #lambda_hat <- matrix(estLambda$par, ncol = S, byrow = TRUE)
   #  }
   #}
   #}
   #lambda_hat <- estimatePrecisionParamMap(lambda_prev, n_prev, phi_prev, params, D, rho)
-  
-  
+
+
   #rm(a, b, c, d, e)
   gc(verbose = FALSE, reset = TRUE)
   #if (verbose == TRUE) {
@@ -423,6 +592,26 @@ estimateParamsMap <- function(D, n_prev, sp_prev, phi_prev, lambda_prev, pi_prev
 }
 
 # Student's t likelihood function #
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param n PARAM_DESCRIPTION
+#' @param sp PARAM_DESCRIPTION
+#' @param phi PARAM_DESCRIPTION
+#' @param lambda PARAM_DESCRIPTION
+#' @param params PARAM_DESCRIPTION
+#' @param D PARAM_DESCRIPTION
+#' @param rho PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname stLikelihood
+
 stLikelihood <- function(n, sp, phi, lambda, params, D, rho){
   KS <- nrow(rho)
   lik <- 0
@@ -432,7 +621,7 @@ stLikelihood <- function(n, sp, phi, lambda, params, D, rho){
   for (ks in 1:KS) {
     probs <- log(tdistPDF(D, mus[ks, ], lambdaKS[ks, ], params$nu))
     # multiply across samples for each data point to get joint likelihood.
-    l <- rho[ks, ] %*% rowSums(as.data.frame(probs)) 
+    l <- rho[ks, ] %*% rowSums(as.data.frame(probs))
     lik <- lik + as.numeric(l)
   }
   return(lik)
@@ -441,6 +630,37 @@ stLikelihood <- function(n, sp, phi, lambda, params, D, rho){
 ## length of x will depend on which pararmeters are being estimated
 ## x values should be same as n, phi, lambda, pi, but may not necessarily
 ## include all of those variables
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param pType PARAM_DESCRIPTION
+#' @param n PARAM_DESCRIPTION
+#' @param sp PARAM_DESCRIPTION
+#' @param phi PARAM_DESCRIPTION
+#' @param lambda PARAM_DESCRIPTION
+#' @param piG PARAM_DESCRIPTION
+#' @param A PARAM_DESCRIPTION
+#' @param params PARAM_DESCRIPTION
+#' @param D PARAM_DESCRIPTION
+#' @param rho PARAM_DESCRIPTION
+#' @param Zcounts PARAM_DESCRIPTION
+#' @param estimateNormal PARAM_DESCRIPTION, Default: TRUE
+#' @param estimatePloidy PARAM_DESCRIPTION, Default: TRUE
+#' @param estimatePrecision PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateTransition PARAM_DESCRIPTION, Default: FALSE
+#' @param estimateInitDist PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateSubclone PARAM_DESCRIPTION, Default: TRUE
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname completeLikelihoodFun
+
 completeLikelihoodFun <- function(x, pType, n, sp, phi, lambda, piG, A, params, D, rho, Zcounts,
                                   estimateNormal = TRUE, estimatePloidy = TRUE,
                                   estimatePrecision = TRUE, estimateTransition = FALSE,
@@ -449,24 +669,24 @@ completeLikelihoodFun <- function(x, pType, n, sp, phi, lambda, piG, A, params, 
   N <- ncol(rho)
   S <- params$numberSamples
   K <- length(params$ct)
-  
+
   lambda <- matrix(lambda, ncol = S, byrow = FALSE)
-  
+
   if (estimatePrecision && sum(pType == "lambda") > 0){
     lambda <- matrix(x[pType == "lambda"], ncol = S, byrow = FALSE)
-  } 
+  }
   if (estimateNormal && sum(pType == "n") > 0){
     n <- x[pType == "n"]
-  }  
+  }
   if (estimateSubclone && sum(pType == "sp") > 0){
     sp <- x[pType == "sp"]
-  }  
+  }
   if (estimatePloidy && sum(pType == "phi") > 0){
     phi <- x[pType == "phi"]
   }
-  
+
   ## prior probabilities ##
-  prior <- priorProbs(n, sp, phi, lambda, piG, A, params, 
+  prior <- priorProbs(n, sp, phi, lambda, piG, A, params,
                       estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
                       estimatePrecision = estimatePrecision, estimateTransition = estimateTransition,
                       estimateInitDist = estimateInitDist, estimateSubclone = estimateSubclone)
@@ -477,7 +697,7 @@ completeLikelihoodFun <- function(x, pType, n, sp, phi, lambda, piG, A, params, 
   for (ks in 1:KS){
     likTxn <- likTxn + Zcounts[ks, ] %*% log(A[ks, ])
   }
-  
+
   ## sum together ##
   lik <- likObs + likInit + likTxn
   prior <- prior$prior
@@ -485,7 +705,33 @@ completeLikelihoodFun <- function(x, pType, n, sp, phi, lambda, piG, A, params, 
   return(f)
 }
 
-priorProbs <- function(n, sp, phi, lambda, piG, A, params, 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param n PARAM_DESCRIPTION
+#' @param sp PARAM_DESCRIPTION
+#' @param phi PARAM_DESCRIPTION
+#' @param lambda PARAM_DESCRIPTION
+#' @param piG PARAM_DESCRIPTION
+#' @param A PARAM_DESCRIPTION
+#' @param params PARAM_DESCRIPTION
+#' @param estimateNormal PARAM_DESCRIPTION, Default: TRUE
+#' @param estimatePloidy PARAM_DESCRIPTION, Default: TRUE
+#' @param estimatePrecision PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateTransition PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateInitDist PARAM_DESCRIPTION, Default: TRUE
+#' @param estimateSubclone PARAM_DESCRIPTION, Default: TRUE
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname priorProbs
+
+priorProbs <- function(n, sp, phi, lambda, piG, A, params,
                        estimateNormal = TRUE, estimatePloidy = TRUE,
                        estimatePrecision = TRUE, estimateTransition = TRUE,
                        estimateInitDist = TRUE, estimateSubclone = TRUE){
@@ -503,10 +749,10 @@ priorProbs <- function(n, sp, phi, lambda, piG, A, params,
   if (estimatePrecision){
     for (s in 1:S){
       for (k in 1:K){
-        priorLambda <- priorLambda + 
+        priorLambda <- priorLambda +
           gammapdflog(as.data.frame(lambda)[k, s], params$alphaLambda[k], params$betaLambda[k, s])
       }
-    } 
+    }
   }
   priorLambda <- as.numeric(priorLambda)
   priorN <- 0
@@ -525,17 +771,36 @@ priorProbs <- function(n, sp, phi, lambda, piG, A, params,
   if (estimateInitDist){
     priorPi <- dirichletpdflog(piG, params$kappa)
   }
-  prior <- priorA + priorLambda + priorN + priorSP + priorPhi + priorPi  
-  return(list(prior = prior, priorA = priorA, priorLambda = priorLambda, 
+  prior <- priorA + priorLambda + priorN + priorSP + priorPhi + priorPi
+  return(list(prior = prior, priorA = priorA, priorLambda = priorLambda,
               priorN = priorN, priorSP = priorSP, priorPhi = priorPhi, priorPi = priorPi))
 }
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param lambda PARAM_DESCRIPTION
+#' @param n PARAM_DESCRIPTION
+#' @param phi PARAM_DESCRIPTION
+#' @param params PARAM_DESCRIPTION
+#' @param D PARAM_DESCRIPTION
+#' @param rho PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname estimatePrecisionParamMap
 
 estimatePrecisionParamMap <- function(lambda, n, phi, params, D, rho){
   mu <- get2ComponentMixture(params$ct, n, phi)
   mu_0 <- get2ComponentMixture(params$ct, params$n_0, params$phi_0)
   yr <- t(matrix(D, length(D), length(mu)))        # Vectorize parameter
   u <- (1 + params$nu) / (((yr - mu) ^ 2) * lambda + params$nu); # scale parameter
-  
+
   # Calculate the precision
   lambda_hat <- (rowSums(rho, na.rm = TRUE) + params$alphaLambda + 1) /
     (rowSums(rho * u * ((yr - mu) ^ 2), na.rm = TRUE) +
@@ -543,13 +808,28 @@ estimatePrecisionParamMap <- function(lambda, n, phi, params, D, rho){
   return(lambda_hat)
 }
 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param rho PARAM_DESCRIPTION
+#' @param kappa PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname estimateMixWeightsParamMap
+
 estimateMixWeightsParamMap <- function(rho, kappa) {
   K <- nrow(rho)
   #pi <- (rho[, 1] + kappa - 1) / (sum(rho[, 1]) + sum(kappa) - K)
-  pi <- (rowSums(rho, na.rm = TRUE) + kappa - 1) / 
+  pi <- (rowSums(rho, na.rm = TRUE) + kappa - 1) /
     #	(ncol(rho) + sum(kappa) - K)
     (sum(rowSums(rho, na.rm = TRUE)) + sum(kappa) - K)
-  
+
   return(pi)
-} 
+}
 

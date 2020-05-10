@@ -14,11 +14,40 @@
 ##### FUNCTION TO FILTER CHRS ######
 ####################################
 # updated for GRanges #
-keepChr <- function(tumour_reads, chrs = c(1:22,"X","Y")){	
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param tumour_reads PARAM_DESCRIPTION
+#' @param chrs PARAM_DESCRIPTION, Default: c(1:22, "X", "Y")
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname keepChr
+
+keepChr <- function(tumour_reads, chrs = c(1:22,"X","Y")){
 	tumour_reads <- keepSeqlevels(tumour_reads, chrs, pruning.mode="coarse")
 	sortSeqlevels(tumour_reads)
 	return(sort(tumour_reads))
 }
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param gr PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname filterEmptyChr
 
 filterEmptyChr <- function(gr){
 	require(plyr)
@@ -27,13 +56,28 @@ filterEmptyChr <- function(gr){
 	    sum(is.na(y)) == length(y)
 	  })
 	  sum(rowInd) == nrow(x)
-	})	
+	})
 	return(keepSeqlevels(gr, value = names(which(!ind))))
 }
 
 ####################################
 ##### FUNCTION GET SEQINFO ######
 ####################################
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param genomeBuild PARAM_DESCRIPTION, Default: 'hg19'
+#' @param genomeStyle PARAM_DESCRIPTION, Default: 'NCBI'
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname getSeqInfo
+
 getSeqInfo <- function(genomeBuild = "hg19", genomeStyle = "NCBI"){
 	bsg <- paste0("BSgenome.Hsapiens.UCSC.", genomeBuild)
 	if (!require(bsg, character.only=TRUE, quietly=TRUE, warn.conflicts=FALSE)) {
@@ -44,12 +88,29 @@ getSeqInfo <- function(genomeBuild = "hg19", genomeStyle = "NCBI"){
 	seqlevelsStyle(seqinfo) <- genomeStyle
 	seqinfo <- keepSeqlevels(seqinfo, value = chrs)
 	#seqinfo <- cbind(seqnames = seqnames(seqinfo), as.data.frame(seqinfo))
-	return(seqinfo)	
+	return(seqinfo)
 }
 
 ##################################################
 ##### FUNCTION TO FILTER CENTROMERE REGIONS ######
 ##################################################
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param centromere PARAM_DESCRIPTION
+#' @param flankLength PARAM_DESCRIPTION, Default: 0
+#' @param genomeStyle PARAM_DESCRIPTION, Default: 'NCBI'
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname excludeCentromere
+
 excludeCentromere <- function(x, centromere, flankLength = 0, genomeStyle = "NCBI"){
 	require(GenomeInfoDb)
 	colnames(centromere)[1:3] <- c("seqnames","start","end")
@@ -57,7 +118,7 @@ excludeCentromere <- function(x, centromere, flankLength = 0, genomeStyle = "NCB
 	centromere$end <- centromere$end + flankLength
 	centromere <- as(centromere, "GRanges")
 	seqlevelsStyle(centromere) <- genomeStyle
-	centromere <- sort(centromere)	
+	centromere <- sort(centromere)
 	hits <- findOverlaps(query = x, subject = centromere)
 	ind <- queryHits(hits)
 	message("Removed ", length(ind), " bins near centromeres.")
@@ -71,6 +132,22 @@ excludeCentromere <- function(x, centromere, flankLength = 0, genomeStyle = "NCB
 ##### FUNCTION TO USE NCBI CHROMOSOME NAMES ######
 ##################################################
 ## deprecated ##
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param genomeStyle PARAM_DESCRIPTION, Default: 'NCBI'
+#' @param species PARAM_DESCRIPTION, Default: 'Homo_sapiens'
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname setGenomeStyle
+
 setGenomeStyle <- function(x, genomeStyle = "NCBI", species = "Homo_sapiens"){
         require(GenomeInfoDb)
         #chrs <- genomeStyles(species)[c("NCBI","UCSC")]
@@ -85,6 +162,23 @@ setGenomeStyle <- function(x, genomeStyle = "NCBI", species = "Homo_sapiens"){
     return(x)
 }
 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param wigfile PARAM_DESCRIPTION
+#' @param verbose PARAM_DESCRIPTION, Default: TRUE
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname wigToGRanges
+#' @seealso
+#'
+#' @import GenomicRanges
 wigToGRanges <- function(wigfile, verbose = TRUE){
   if (verbose) { message(paste("Slurping:", wigfile)) }
   input <- readLines(wigfile, warn = FALSE)
@@ -115,25 +209,52 @@ wigToGRanges <- function(wigfile, verbose = TRUE){
 }
 
 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param counts PARAM_DESCRIPTION
+#' @param chrs PARAM_DESCRIPTION, Default: c(1:22, "X", "Y")
+#' @param gc PARAM_DESCRIPTION, Default: NULL
+#' @param map PARAM_DESCRIPTION, Default: NULL
+#' @param centromere PARAM_DESCRIPTION, Default: NULL
+#' @param flankLength PARAM_DESCRIPTION, Default: 1e+05
+#' @param targetedSequences PARAM_DESCRIPTION, Default: NULL
+#' @param genomeStyle PARAM_DESCRIPTION, Default: 'NCBI'
+#' @param applyCorrection PARAM_DESCRIPTION, Default: TRUE
+#' @param mapScoreThres PARAM_DESCRIPTION, Default: 0.9
+#' @param chrNormalize PARAM_DESCRIPTION, Default: c(1:22, "X", "Y")
+#' @param fracReadsInChrYForMale PARAM_DESCRIPTION, Default: 0.002
+#' @param chrXMedianForMale PARAM_DESCRIPTION, Default: -0.5
+#' @param useChrY PARAM_DESCRIPTION, Default: TRUE
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname loadReadCountsFromWig
+
 loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, map = NULL, centromere = NULL, flankLength = 100000, targetedSequences = NULL, genomeStyle = "NCBI", applyCorrection = TRUE, mapScoreThres = 0.9, chrNormalize = c(1:22, "X", "Y"), fracReadsInChrYForMale = 0.002, chrXMedianForMale = -0.5, useChrY = TRUE){
 	require(HMMcopy)
 	require(GenomeInfoDb)
 	seqlevelsStyle(counts) <- genomeStyle
-	counts.raw <- counts	
+	counts.raw <- counts
 	counts <- keepChr(counts, chrs)
-	
-	if (!is.null(gc)){ 
+
+	if (!is.null(gc)){
 		seqlevelsStyle(gc) <- genomeStyle
 		counts$gc <- keepChr(gc, chrs)$value
 	}
-	if (!is.null(map)){ 
+	if (!is.null(map)){
 		seqlevelsStyle(map) <- genomeStyle
 		counts$map <- keepChr(map, chrs)$value
 	}
 	colnames(values(counts))[1] <- c("reads")
-	
+
 	# remove centromeres
-	if (!is.null(centromere)){ 
+	if (!is.null(centromere)){
 		counts <- excludeCentromere(counts, centromere, flankLength = flankLength, genomeStyle=genomeStyle)
 	}
 	# keep targeted sequences
@@ -153,7 +274,7 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
 		  counts <- filterByMappabilityScore(counts, map=map, mapScoreThres = mapScoreThres)
 		}
 		## get gender ##
-		gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale, 
+		gender <- getGender(counts.raw, counts, gc, map, fracReadsInChrYForMale = fracReadsInChrYForMale,
 							chrXMedianForMale = chrXMedianForMale, useChrY = useChrY,
 							centromere=centromere, flankLength=flankLength, targetedSequences = targetedSequences,
 							genomeStyle = genomeStyle)
@@ -161,11 +282,42 @@ loadReadCountsFromWig <- function(counts, chrs = c(1:22, "X", "Y"), gc = NULL, m
   return(list(counts = counts, gender = gender))
 }
 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param counts PARAM_DESCRIPTION
+#' @param map PARAM_DESCRIPTION
+#' @param mapScoreThres PARAM_DESCRIPTION, Default: 0.9
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname filterByMappabilityScore
+
 filterByMappabilityScore <- function(counts, map, mapScoreThres = 0.9){
 	message("Filtering low uniqueness regions with mappability score < ", mapScoreThres)
 	counts <- counts[counts$map >= mapScoreThres, ]
 	return(counts)
 }
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param counts PARAM_DESCRIPTION
+#' @param targetedSequences PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname filterByTargetedSequences
 
 filterByTargetedSequences <- function(counts, targetedSequences){
  ### for targeted sequencing (e.g.  exome capture),
@@ -173,35 +325,59 @@ filterByTargetedSequences <- function(counts, targetedSequences){
     ### targetedSequence = GRanges object
     ### containing list of targeted regions to consider;
     ### 3 columns: chr, start, end
-					
+
 	hits <- findOverlaps(query = counts, subject = targetedSequences)
-	keepInd <- unique(queryHits(hits))    
+	keepInd <- unique(queryHits(hits))
 
 	return(list(counts=counts, ix=keepInd))
 }
 
 selectFemaleChrXSolution <- function(){
-	
+
 }
 
 ##################################################
 ### FUNCTION TO DETERMINE GENDER #################
 ##################################################
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param rawReads PARAM_DESCRIPTION
+#' @param normReads PARAM_DESCRIPTION
+#' @param gc PARAM_DESCRIPTION
+#' @param map PARAM_DESCRIPTION
+#' @param fracReadsInChrYForMale PARAM_DESCRIPTION, Default: 0.002
+#' @param chrXMedianForMale PARAM_DESCRIPTION, Default: -0.5
+#' @param useChrY PARAM_DESCRIPTION, Default: TRUE
+#' @param centromere PARAM_DESCRIPTION, Default: NULL
+#' @param flankLength PARAM_DESCRIPTION, Default: 1e+05
+#' @param targetedSequences PARAM_DESCRIPTION, Default: NULL
+#' @param genomeStyle PARAM_DESCRIPTION, Default: 'NCBI'
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname getGender
+
 getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.002, chrXMedianForMale = -0.5, useChrY = TRUE,
 					  centromere=NULL, flankLength=1e5, targetedSequences=NULL, genomeStyle="NCBI"){
 	chrXStr <- grep("X", runValue(seqnames(normReads)), value = TRUE)
 	chrYStr <- grep("Y", runValue(seqnames(rawReads)), value = TRUE)
 	chrXInd <- as.character(seqnames(normReads)) == chrXStr
-	if (sum(chrXInd) > 1){ ## if no X 
+	if (sum(chrXInd) > 1){ ## if no X
 		chrXMedian <- median(normReads[chrXInd, ]$copy, na.rm = TRUE)
 		# proportion of reads in chrY #
 		tumY <- loadReadCountsFromWig(rawReads, chrs=chrYStr, genomeStyle=genomeStyle,
-				gc=gc, map=map, applyCorrection = FALSE, centromere=centromere, flankLength=flankLength, 
+				gc=gc, map=map, applyCorrection = FALSE, centromere=centromere, flankLength=flankLength,
 				targetedSequences=targetedSequences)$counts
 		chrYCov <- sum(tumY$reads) / sum(rawReads$value)
 		if (chrXMedian < chrXMedianForMale){
 			if (useChrY && (chrYCov < fracReadsInChrYForMale)){ #trumps chrX if using chrY
-					gender <- "female"  
+					gender <- "female"
 			}else{
 				gender <- "male" # satisfies decreased chrX log ratio and/or increased chrY coverage
 			}
@@ -215,9 +391,28 @@ getGender <- function(rawReads, normReads, gc, map, fracReadsInChrYForMale = 0.0
 	}
 	return(list(gender=gender, chrYCovRatio=chrYCov, chrXMedian=chrXMedian))
 }
-	
-	
-normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"), 
+
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param tumour_copy PARAM_DESCRIPTION
+#' @param chrs PARAM_DESCRIPTION, Default: c(1:22, "X", "Y")
+#' @param normal_panel PARAM_DESCRIPTION, Default: NULL
+#' @param normal_copy PARAM_DESCRIPTION, Default: NULL
+#' @param gender PARAM_DESCRIPTION, Default: 'female'
+#' @param normalizeMaleX PARAM_DESCRIPTION, Default: FALSE
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname normalizeByPanelOrMatchedNormal
+
+normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"),
       normal_panel = NULL, normal_copy = NULL, gender = "female", normalizeMaleX = FALSE){
     genomeStyle <- seqlevelsStyle(tumour_copy)[1]
     seqlevelsStyle(chrs) <- genomeStyle
@@ -265,6 +460,24 @@ normalizeByPanelOrMatchedNormal <- function(tumour_copy, chrs = c(1:22, "X", "Y"
 ##################################################
 ###### FUNCTION TO CORRECT GC/MAP BIASES ########
 ##################################################
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param chrNormalize PARAM_DESCRIPTION, Default: c(1:22)
+#' @param mappability PARAM_DESCRIPTION, Default: 0.9
+#' @param samplesize PARAM_DESCRIPTION, Default: 50000
+#' @param verbose PARAM_DESCRIPTION, Default: TRUE
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname correctReadCounts
+
 correctReadCounts <- function(x, chrNormalize = c(1:22), mappability = 0.9, samplesize = 50000,
     verbose = TRUE) {
   if (length(x$reads) == 0 | length(x$gc) == 0) {
@@ -314,15 +527,40 @@ correctReadCounts <- function(x, chrNormalize = c(1:22), mappability = 0.9, samp
 
 ## Recompute integer CN for high-level amplifications ##
 ## compute logR-corrected copy number ##
-correctIntegerCN <- function(cn, segs, callColName = "event", 
-		purity, ploidy, cellPrev, maxCNtoCorrect.autosomes = NULL, 
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param cn PARAM_DESCRIPTION
+#' @param segs PARAM_DESCRIPTION
+#' @param callColName PARAM_DESCRIPTION, Default: 'event'
+#' @param purity PARAM_DESCRIPTION
+#' @param ploidy PARAM_DESCRIPTION
+#' @param cellPrev PARAM_DESCRIPTION
+#' @param maxCNtoCorrect.autosomes PARAM_DESCRIPTION, Default: NULL
+#' @param maxCNtoCorrect.X PARAM_DESCRIPTION, Default: NULL
+#' @param correctHOMD PARAM_DESCRIPTION, Default: TRUE
+#' @param minPurityToCorrect PARAM_DESCRIPTION, Default: 0.2
+#' @param gender PARAM_DESCRIPTION, Default: 'male'
+#' @param chrs PARAM_DESCRIPTION, Default: c(1:22, "X")
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname correctIntegerCN
+
+correctIntegerCN <- function(cn, segs, callColName = "event",
+		purity, ploidy, cellPrev, maxCNtoCorrect.autosomes = NULL,
 		maxCNtoCorrect.X = NULL, correctHOMD = TRUE, minPurityToCorrect = 0.2, gender = "male", chrs = c(1:22, "X")){
 	names <- c("HOMD","HETD","NEUT","GAIN","AMP","HLAMP", rep("HLAMP", 1000))
 
 	## set up chromosome style
 	autosomeStr <- grep("X|Y", chrs, value=TRUE, invert=TRUE)
 	chrXStr <- grep("X", chrs, value=TRUE)
-	
+
 	if (is.null(maxCNtoCorrect.autosomes)){
 		maxCNtoCorrect.autosomes <- max(segs[segs$chr %in% autosomeStr, "copy.number"], na.rm = TRUE)
 	}
@@ -347,15 +585,15 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 	if (purity >= minPurityToCorrect){
 		# 2) ichorCNA calls adjusted for >= copies - HLAMP
 		# perform on all chromosomes
-		ind.cn <- which(segs$copy.number >= maxCNtoCorrect.autosomes | 
+		ind.cn <- which(segs$copy.number >= maxCNtoCorrect.autosomes |
 						(segs$logR_Copy_Number >= maxCNtoCorrect.autosomes * 1.2 & !is.infinite(segs$logR_Copy_Number)))
 		segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
 		segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 1]
 		ind.change <- c(ind.change, ind.cn)
-		
+
 		# 3) ichorCNA calls adjust for HOMD
 		if (correctHOMD){
-			ind.cn <- which(segs$chr %in% chrs & 
+			ind.cn <- which(segs$chr %in% chrs &
 				(segs$copy.number == 0 | segs$logR_Copy_Number == 1/2^6))
 			segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
 			segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 1]
@@ -363,7 +601,7 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 		}
 		# 4) Re-adjust chrX copy number for males (females already handled above)
 		if (gender == "male" & length(chrXStr) > 0){
-			ind.cn <- which(segs$chr == chrXStr & 
+			ind.cn <- which(segs$chr == chrXStr &
 				(segs$copy.number >= maxCNtoCorrect.X | segs$logR_Copy_Number >= maxCNtoCorrect.X * 1.2))
 			segs$Corrected_Copy_Number[ind.cn] <- as.integer(round(segs$logR_Copy_Number[ind.cn]))
 			segs$Corrected_Call[ind.cn] <- names[segs$Corrected_Copy_Number[ind.cn] + 2]
@@ -385,7 +623,7 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 		# 2) correct bins overlapping adjusted segs
 		ind.change <- unique(ind.change)
 		ind.overlapSegs <- c()
-		if (length(ind.change) > 0){		
+		if (length(ind.change) > 0){
 			cn.gr <- as(cn, "GRanges")
 			segs.gr <- as(segs, "GRanges")
 			hits <- findOverlaps(query = cn.gr, subject = segs.gr[ind.change])
@@ -394,33 +632,65 @@ correctIntegerCN <- function(cn, segs, callColName = "event",
 			ind.overlapSegs <- queryHits(hits)
 		}
 		# 3) correct bins that are missed as high level amplifications
-		ind.hlamp <- which(cn$copy.number >= maxCNtoCorrect.autosomes | 
+		ind.hlamp <- which(cn$copy.number >= maxCNtoCorrect.autosomes |
 	 					(cn$logR_Copy_Number >= maxCNtoCorrect.autosomes * 1.2 & !is.infinite(cn$logR_Copy_Number)))
 		ind.cn <- unique(ind.hlamp, ind.overlapSegs)
 	 	cn$Corrected_Copy_Number[ind.cn] <- as.integer(round(cn$logR_Copy_Number[ind.cn]))
 	 	cn$Corrected_Call[ind.cn] <- names[cn$Corrected_Copy_Number[ind.cn] + 1]
 	 }
-	 
+
 	return(list(cn = cn, segs = segs))
 }
 
 
 ## compute copy number using corrected log ratio ##
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param x PARAM_DESCRIPTION
+#' @param purity PARAM_DESCRIPTION
+#' @param ploidyT PARAM_DESCRIPTION
+#' @param cellPrev PARAM_DESCRIPTION, Default: NA
+#' @param cn PARAM_DESCRIPTION, Default: 2
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname logRbasedCN
+
 logRbasedCN <- function(x, purity, ploidyT, cellPrev=NA, cn = 2){
 	if (length(cellPrev) == 1 && is.na(cellPrev)){
 		cellPrev <- 1
 	}else{ #if cellPrev is a vector
 		cellPrev[is.na(cellPrev)] <- 1
 	}
-	ct <- (2^x 
-		* (cn * (1 - purity) + purity * ploidyT * (cn / 2)) 
-		- (cn * (1 - purity)) 
-		- (cn * purity * (1 - cellPrev))) 
+	ct <- (2^x
+		* (cn * (1 - purity) + purity * ploidyT * (cn / 2))
+		- (cn * (1 - purity))
+		- (cn * purity * (1 - cellPrev)))
 	ct <- ct / (purity * cellPrev)
 	ct <- sapply(ct, max, 1/2^6)
 	return(ct)
 }
 
+
+#' @title FUNCTION_TITLE
+#' @description FUNCTION_DESCRIPTION
+#' @param params PARAM_DESCRIPTION
+#' @return OUTPUT_DESCRIPTION
+#' @details DETAILS
+#' @examples
+#' \dontrun{
+#' if(interactive()){
+#'  #EXAMPLE1
+#'  }
+#' }
+#' @export
+#' @rdname computeBIC
 
 computeBIC <- function(params){
   iter <- params$iter
@@ -431,7 +701,7 @@ computeBIC <- function(params){
   numParams <- KS * (KS - 1) + KS * (L + NP) - 1
   b <- -2 * params$loglik[iter] + numParams * log(N)
   return(b)
-} 
+}
 
 
 #############################################################
