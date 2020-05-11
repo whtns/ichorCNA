@@ -497,7 +497,20 @@ normalize <- function(A) {
 #' @export
 #'
 #' @examples
-runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL, normalPanel = NULL, exons.bed = NULL, patientID = "test", centromere = NULL, minMapScore = 0.9, rmCentromereFlankLength = 1e+05, normal = 0.5, scStates = NULL, coverage = NULL, lambda = NULL, lambdaScaleHyperParam = 3, ploidy = 2, maxCN = 7, estimateNormal = TRUE, estimateScPrevalence = TRUE, estimatePloidy = TRUE, maxFracCNASubclone = 0.7, maxFracGenomeSubclone = 0.5, minSegmentBins = 50, altFracThreshold = 0.05, chrNormalize = c(1:22), chrTrain = c(1:22), chrs = c(1:22,"X"), genomeBuild = "hg19", genomeStyle = "NCBI", normalizeMaleX = TRUE, minTumFracToCorrect = 0.1, fracReadsInChrYForMale = 0.001, includeHOMD = FALSE, txnE = 0.9999999, txnStrength = 1e+07, plotFileType = pdf, plotYLim = c(-2,2), outDir = "./",  libdir = NULL) {
+runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL, normalPanel = NULL,
+                        exons.bed = NULL, patientID = "test", centromere = NULL, minMapScore = 0.9,
+                        rmCentromereFlankLength = 1e+05, normal = 0.5, scStates = NULL, coverage = NULL,
+                        lambda = NULL, lambdaScaleHyperParam = 3, ploidy = 2, maxCN = 7, estimateNormal = TRUE,
+                        estimateScPrevalence = TRUE, estimatePloidy = TRUE, maxFracCNASubclone = 0.7,
+                        maxFracGenomeSubclone = 0.5, minSegmentBins = 50, altFracThreshold = 0.05,
+                        chrNormalize = c(1:22), chrTrain = c(1:22), chrs = c(1:22, "X"), genomeBuild = "hg19",
+                        genomeStyle = "NCBI", normalizeMaleX = TRUE, minTumFracToCorrect = 0.1,
+                        fracReadsInChrYForMale = 0.001, includeHOMD = FALSE, txnE = 0.9999999, txnStrength = 1e+07,
+                        plotFileType = "pdf", plotYLim = c(-2, 2), outDir = "test", libdir = NULL) {
+
+  if (!file.exists(outdir)){
+    dir.create(outDir)
+  }
 
   # browser()
 
@@ -509,7 +522,7 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
   gcWig <- gcWig
   mapWig <- mapWig
   normal_panel <- normalPanel
-  exons.bed <- exons.bed  # "0" if none specified
+  exons.bed <- exons.bed # "0" if none specified
   centromere <- centromere
   minMapScore <- minMapScore
   flankLength <- rmCentromereFlankLength
@@ -544,7 +557,7 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
   plotYLim <- plotYLim
   # plotYLim <- eval(parse(text=plotYLim))
   gender <- NULL
-  outImage <- paste0(outDir,"/", patientID,".RData")
+  outImage <- paste0(outDir, "/", patientID, ".RData")
   genomeBuild <- genomeBuild
   genomeStyle <- genomeStyle
   chrs <- chrs
@@ -562,54 +575,55 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
   # browser()
   seqinfo <- getSeqInfo(genomeBuild, genomeStyle)
 
-  if (substr(tumour_file,nchar(tumour_file)-2,nchar(tumour_file)) == "wig") {
+  if (substr(tumour_file, nchar(tumour_file) - 2, nchar(tumour_file)) == "wig") {
     wigFiles <- data.frame(cbind(patientID, tumour_file))
   } else {
-    wigFiles <- read.delim(tumour_file, header=F, as.is=T)
+    wigFiles <- read.delim(tumour_file, header = F, as.is = T)
   }
 
   ## FILTER BY EXONS IF PROVIDED ##
   ## add gc and map to GRanges object ##
-  if (is.null(exons.bed) || exons.bed == "None" || exons.bed == "NULL"){
+  if (is.null(exons.bed) || exons.bed == "None" || exons.bed == "NULL") {
     targetedSequences <- NULL
-  }else{
-    targetedSequences <- read.delim(exons.bed, header=T, sep="\t")
+  } else {
+    targetedSequences <- read.delim(exons.bed, header = T, sep = "\t")
   }
 
   ## load PoN
-  if (is.null(normal_panel) || normal_panel == "None" || normal_panel == "NULL"){
+  if (is.null(normal_panel) || normal_panel == "None" || normal_panel == "NULL") {
     normal_panel <- NULL
   }
 
-  if (is.null(centromere) || centromere == "None" || centromere == "NULL"){ # no centromere file provided
+  if (is.null(centromere) || centromere == "None" || centromere == "NULL") { # no centromere file provided
     centromere <- system.file("extdata", "GRCh37.p13_centromere_UCSC-gapTable.txt",
-                              package = "ichorCNA")
+      package = "ichorCNA"
+    )
   }
 
   # ------------------------------
-  centromere <- read.delim(centromere,header=T,stringsAsFactors=F,sep="\t")
+  centromere <- read.delim(centromere, header = T, stringsAsFactors = F, sep = "\t")
   save.image(outImage)
   ## LOAD IN WIG FILES ##
   numSamples <- nrow(wigFiles)
 
   tumour_copy <- list()
   for (i in 1:numSamples) {
-    id <- wigFiles[i,1]
+    id <- wigFiles[i, 1]
     ## create output directories for each sample ##
     dir.create(paste0(outDir, "/", id, "/"), recursive = TRUE)
     ### LOAD TUMOUR AND NORMAL FILES ###
-    message("Loading tumour file:", wigFiles[i,1])
-    tumour_reads <- wigToGRanges(wigFiles[i,2])
+    message("Loading tumour file:", wigFiles[i, 1])
+    tumour_reads <- wigToGRanges(wigFiles[i, 2])
 
     ## LOAD GC/MAP WIG FILES ###
     # find the bin size and load corresponding wig files #
-    binSize <- as.data.frame(tumour_reads[1,])$width
+    binSize <- as.data.frame(tumour_reads[1, ])$width
     message("Reading GC and mappability files")
-    if (is.null(gcWig) || gcWig == "None" || gcWig == "NULL"){
+    if (is.null(gcWig) || gcWig == "None" || gcWig == "NULL") {
       stop("GC wig file is required")
     }
     gc <- wigToGRanges(gcWig)
-    if (is.null(mapWig) || mapWig == "None" || mapWig == "NULL"){
+    if (is.null(mapWig) || mapWig == "None" || mapWig == "NULL") {
       message("No mappability wig file input, excluding from correction")
       map <- NULL
     } else {
@@ -617,24 +631,28 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
     }
     message("Correcting Tumour")
 
-    counts <- loadReadCountsFromWig(tumour_reads, chrs = chrs, gc = gc, map = map,
-                                    centromere = centromere, flankLength = flankLength,
-                                    targetedSequences = targetedSequences, chrXMedianForMale = chrXMedianForMale,
-                                    genomeStyle = genomeStyle, fracReadsInChrYForMale = fracReadsInChrYForMale,
-                                    chrNormalize = chrNormalize, mapScoreThres = minMapScore)
-    tumour_copy[[id]] <- counts$counts #as(counts$counts, "GRanges")
+    counts <- loadReadCountsFromWig(tumour_reads,
+      chrs = chrs, gc = gc, map = map,
+      centromere = centromere, flankLength = flankLength,
+      targetedSequences = targetedSequences, chrXMedianForMale = chrXMedianForMale,
+      genomeStyle = genomeStyle, fracReadsInChrYForMale = fracReadsInChrYForMale,
+      chrNormalize = chrNormalize, mapScoreThres = minMapScore
+    )
+    tumour_copy[[id]] <- counts$counts # as(counts$counts, "GRanges")
     gender <- counts$gender
     ## load in normal file if provided
-    if (!is.null(normal_file) && normal_file != "None" && normal_file != "NULL"){
+    if (!is.null(normal_file) && normal_file != "None" && normal_file != "NULL") {
       message("Loading normal file:", normal_file)
       normal_reads <- wigToGRanges(normal_file)
       message("Correcting Normal")
-      counts <- loadReadCountsFromWig(normal_reads, chrs=chrs, gc=gc, map=map,
-                                      centromere=centromere, flankLength = flankLength, targetedSequences=targetedSequences,
-                                      genomeStyle = genomeStyle, chrNormalize = chrNormalize, mapScoreThres = minMapScore)
-      normal_copy <- counts$counts #as(counts$counts, "GRanges")
+      counts <- loadReadCountsFromWig(normal_reads,
+        chrs = chrs, gc = gc, map = map,
+        centromere = centromere, flankLength = flankLength, targetedSequences = targetedSequences,
+        genomeStyle = genomeStyle, chrNormalize = chrNormalize, mapScoreThres = minMapScore
+      )
+      normal_copy <- counts$counts # as(counts$counts, "GRanges")
       gender.normal <- counts$gender
-    }else{
+    } else {
       normal_copy <- NULL
     }
 
@@ -642,8 +660,8 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
     ## if normal file not given, use chrY, else use chrX
     message("Determining gender...", appendLF = FALSE)
     gender.mismatch <- FALSE
-    if (!is.null(normal_copy)){
-      if (gender$gender != gender.normal$gender){ #use tumour # use normal if given
+    if (!is.null(normal_copy)) {
+      if (gender$gender != gender.normal$gender) { # use tumour # use normal if given
         # check if normal is same gender as tumour
         gender.mismatch <- TRUE
       }
@@ -651,27 +669,28 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
     message("Gender ", gender$gender)
 
     ## NORMALIZE GENOME-WIDE BY MATCHED NORMAL OR NORMAL PANEL (MEDIAN) ##
-    tumour_copy[[id]] <- normalizeByPanelOrMatchedNormal(tumour_copy[[id]], chrs = chrs,
-                                                         normal_panel = normal_panel, normal_copy = normal_copy,
-                                                         gender = gender$gender, normalizeMaleX = normalizeMaleX)
+    tumour_copy[[id]] <- normalizeByPanelOrMatchedNormal(tumour_copy[[id]],
+      chrs = chrs,
+      normal_panel = normal_panel, normal_copy = normal_copy,
+      gender = gender$gender, normalizeMaleX = normalizeMaleX
+    )
 
     ### OUTPUT FILE ###
     ### PUTTING TOGETHER THE COLUMNS IN THE OUTPUT ###
     outMat <- as.data.frame(tumour_copy[[id]])
-    #outMat <- outMat[,c(1,2,3,12)]
-    outMat <- outMat[,c("seqnames","start","end","copy")]
-    colnames(outMat) <- c("chr","start","end","log2_TNratio_corrected")
-    outFile <- paste0(outDir,"/",id,".correctedDepth.txt")
+    # outMat <- outMat[,c(1,2,3,12)]
+    outMat <- outMat[, c("seqnames", "start", "end", "copy")]
+    colnames(outMat) <- c("chr", "start", "end", "log2_TNratio_corrected")
+    outFile <- paste0(outDir, "/", id, ".correctedDepth.txt")
     message(paste("Outputting to:", outFile))
-    write.table(outMat, file=outFile, row.names=F, col.names=T, quote=F, sep="\t")
-
+    write.table(outMat, file = outFile, row.names = F, col.names = T, quote = F, sep = "\t")
   } ## end of for each sample
 
   chrInd <- as.character(seqnames(tumour_copy[[1]])) %in% chrTrain
   ## get positions that are valid
   valid <- tumour_copy[[1]]$valid
   if (length(tumour_copy) >= 2) {
-    for (i in 2:length(tumour_copy)){
+    for (i in 2:length(tumour_copy)) {
       valid <- valid & tumour_copy[[i]]$valid
     }
   }
@@ -681,21 +700,29 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
   ## store the results for different normal and ploidy solutions ##
   ptmTotalSolutions <- proc.time() # start total timer
   results <- list()
-  loglik <- as.data.frame(matrix(NA, nrow = length(normal) * length(ploidy), ncol = 7,
-                                 dimnames = list(c(), c("init", "n_est", "phi_est", "BIC",
-                                                        "Frac_genome_subclonal", "Frac_CNA_subclonal", "loglik"))))
+  loglik <- as.data.frame(matrix(NA,
+    nrow = length(normal) * length(ploidy), ncol = 7,
+    dimnames = list(c(), c(
+      "init", "n_est", "phi_est", "BIC",
+      "Frac_genome_subclonal", "Frac_CNA_subclonal", "loglik"
+    ))
+  ))
   counter <- 1
   compNames <- rep(NA, nrow(loglik))
   mainName <- rep(NA, length(normal) * length(ploidy))
   #### restart for purity and ploidy values ####
-  for (n in normal){
-    for (p in ploidy){
+  for (n in normal) {
+    for (p in ploidy) {
       if (n == 0.95 & p != 2) {
         next
       }
-      logR <- as.data.frame(lapply(tumour_copy, function(x) { x$copy })) # NEED TO EXCLUDE CHR X #
-      param <- getDefaultParameters(logR[valid & chrInd, , drop=F], maxCN = maxCN, includeHOMD = includeHOMD,
-                                    ct.sc=scStates, ploidy = floor(p), e=txnE, e.same = 50, strength=txnStrength)
+      logR <- as.data.frame(lapply(tumour_copy, function(x) {
+        x$copy
+      })) # NEED TO EXCLUDE CHR X #
+      param <- getDefaultParameters(logR[valid & chrInd, , drop = F],
+        maxCN = maxCN, includeHOMD = includeHOMD,
+        ct.sc = scStates, ploidy = floor(p), e = txnE, e.same = 50, strength = txnStrength
+      )
       param$phi_0 <- rep(p, numSamples)
       param$n_0 <- rep(n, numSamples)
 
@@ -703,15 +730,15 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
       ######## CUSTOM PARAMETER SETTINGS #########
       ############################################
       # 0.1x cfDNA #
-      if (is.null(lambda)){
-        logR.var <- 1 / ((apply(logR, 2, sd, na.rm = TRUE) / sqrt(length(param$ct))) ^ 2)
+      if (is.null(lambda)) {
+        logR.var <- 1 / ((apply(logR, 2, sd, na.rm = TRUE) / sqrt(length(param$ct)))^2)
         param$lambda <- rep(logR.var, length(param$ct))
         param$lambda[param$ct %in% c(2)] <- logR.var
-        param$lambda[param$ct %in% c(1,3)] <- logR.var
+        param$lambda[param$ct %in% c(1, 3)] <- logR.var
         param$lambda[param$ct >= 4] <- logR.var / 5
         param$lambda[param$ct == max(param$ct)] <- logR.var / 15
         param$lambda[param$ct.sc.status] <- logR.var / 10
-      }else{
+      } else {
         param$lambda[param$ct %in% c(2)] <- lambda[2]
         param$lambda[param$ct %in% c(1)] <- lambda[1]
         param$lambda[param$ct %in% c(3)] <- lambda[3]
@@ -721,26 +748,28 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
       }
       param$alphaLambda <- rep(lambdaScaleHyperParam, length(param$ct))
       # 1x bulk tumors #
-      #param$lambda[param$ct %in% c(2)] <- 2000
-      #param$lambda[param$ct %in% c(1)] <- 1750
-      #param$lambda[param$ct %in% c(3)] <- 1750
-      #param$lambda[param$ct >= 4] <- 1500
-      #param$lambda[param$ct == max(param$ct)] <- 1000 / 25
-      #param$lambda[param$ct.sc.status] <- 1000 / 75
-      #param$alphaLambda[param$ct.sc.status] <- 4
-      #param$alphaLambda[param$ct %in% c(1,3)] <- 5
-      #param$alphaLambda[param$ct %in% c(2)] <- 5
-      #param$alphaLambda[param$ct == max(param$ct)] <- 4
+      # param$lambda[param$ct %in% c(2)] <- 2000
+      # param$lambda[param$ct %in% c(1)] <- 1750
+      # param$lambda[param$ct %in% c(3)] <- 1750
+      # param$lambda[param$ct >= 4] <- 1500
+      # param$lambda[param$ct == max(param$ct)] <- 1000 / 25
+      # param$lambda[param$ct.sc.status] <- 1000 / 75
+      # param$alphaLambda[param$ct.sc.status] <- 4
+      # param$alphaLambda[param$ct %in% c(1,3)] <- 5
+      # param$alphaLambda[param$ct %in% c(2)] <- 5
+      # param$alphaLambda[param$ct == max(param$ct)] <- 4
 
       #############################################
       ################ RUN HMM ####################
       #############################################
-      hmmResults.cor <- HMMsegment(tumour_copy, valid, dataType = "copy",
-                                   param = param, chrTrain = chrTrain, maxiter = 50,
-                                   estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
-                                   estimateSubclone = estimateScPrevalence, verbose = TRUE)
+      hmmResults.cor <- HMMsegment(tumour_copy, valid,
+        dataType = "copy",
+        param = param, chrTrain = chrTrain, maxiter = 50,
+        estimateNormal = estimateNormal, estimatePloidy = estimatePloidy,
+        estimateSubclone = estimateScPrevalence, verbose = TRUE
+      )
 
-      for (s in 1:numSamples){
+      for (s in 1:numSamples) {
         iter <- hmmResults.cor$results$iter
         id <- names(hmmResults.cor$cna)[s]
 
@@ -749,49 +778,67 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
         segsS <- hmmResults.cor$results$segs[[s]]
         segsS <- segsS[segsS$chr %in% chrTrain, ]
         segAltInd <- which(segsS$event != "NEUT")
-        maxBinLength = -Inf
-        if (sum(segAltInd) > 0){
+        maxBinLength <- -Inf
+        if (sum(segAltInd) > 0) {
           maxInd <- which.max(segsS$end[segAltInd] - segsS$start[segAltInd] + 1)
-          maxSegRD <- GRanges(seqnames=segsS$chr[segAltInd[maxInd]],
-                              ranges=IRanges(start=segsS$start[segAltInd[maxInd]], end=segsS$end[segAltInd[maxInd]]))
-          hits <- findOverlaps(query=maxSegRD, subject=tumour_copy[[s]][valid, ])
+          maxSegRD <- GRanges(
+            seqnames = segsS$chr[segAltInd[maxInd]],
+            ranges = IRanges(start = segsS$start[segAltInd[maxInd]], end = segsS$end[segAltInd[maxInd]])
+          )
+          hits <- findOverlaps(query = maxSegRD, subject = tumour_copy[[s]][valid, ])
           maxBinLength <- length(subjectHits(hits))
         }
         ## check if there are proportion of total bins altered
         # if segment size smaller than minSegmentBins, but altFrac > altFracThreshold, then still estimate TF
         cnaS <- hmmResults.cor$cna[[s]]
         altInd <- cnaS[cnaS$chr %in% chrTrain, "event"] == "NEUT"
-        altFrac <- sum(!altInd, na.rm=TRUE) / length(altInd)
-        if ((maxBinLength <= minSegmentBins) & (altFrac <= altFracThreshold)){
+        altFrac <- sum(!altInd, na.rm = TRUE) / length(altInd)
+        if ((maxBinLength <= minSegmentBins) & (altFrac <= altFracThreshold)) {
           hmmResults.cor$results$n[s, iter] <- 1.0
         }
 
         # correct integer copy number based on estimated purity and ploidy
-        correctedResults <- correctIntegerCN(cn = hmmResults.cor$cna[[s]],
-                                             segs = hmmResults.cor$results$segs[[s]],
-                                             purity = 1 - hmmResults.cor$results$n[s, iter], ploidy = hmmResults.cor$results$phi[s, iter],
-                                             cellPrev = 1 - hmmResults.cor$results$sp[s, iter],
-                                             maxCNtoCorrect.autosomes = maxCN, maxCNtoCorrect.X = maxCN, minPurityToCorrect = minTumFracToCorrect,
-                                             gender = gender$gender, chrs = chrs, correctHOMD = includeHOMD)
+        correctedResults <- correctIntegerCN(
+          cn = hmmResults.cor$cna[[s]],
+          segs = hmmResults.cor$results$segs[[s]],
+          purity = 1 - hmmResults.cor$results$n[s, iter], ploidy = hmmResults.cor$results$phi[s, iter],
+          cellPrev = 1 - hmmResults.cor$results$sp[s, iter],
+          maxCNtoCorrect.autosomes = maxCN, maxCNtoCorrect.X = maxCN, minPurityToCorrect = minTumFracToCorrect,
+          gender = gender$gender, chrs = chrs, correctHOMD = includeHOMD
+        )
         hmmResults.cor$results$segs[[s]] <- correctedResults$segs
         hmmResults.cor$cna[[s]] <- correctedResults$cn
 
         ## plot solution ##
         outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_", "n", n, "-p", p)
         mainName[counter] <- paste0(id, ", n: ", n, ", p: ", p, ", log likelihood: ", signif(hmmResults.cor$results$loglik[hmmResults.cor$results$iter], digits = 4))
-        plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType=plotFileType,
-                       logR.column = "logR", call.column = "Corrected_Call",
-                       plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence, seqinfo=seqinfo, main=mainName[counter])
+        plotGWSolution(hmmResults.cor,
+          s = s, outPlotFile = outPlotFile, plotFileType = plotFileType,
+          logR.column = "logR", call.column = "Corrected_Call",
+          plotYLim = plotYLim, estimateScPrevalence = estimateScPrevalence, seqinfo = seqinfo, main = mainName[counter]
+        )
       }
       iter <- hmmResults.cor$results$iter
       results[[counter]] <- hmmResults.cor
       loglik[counter, "loglik"] <- signif(hmmResults.cor$results$loglik[iter], digits = 4)
-      subClonalBinCount <- unlist(lapply(hmmResults.cor$cna, function(x){ sum(x$subclone.status) }))
-      fracGenomeSub <- subClonalBinCount / unlist(lapply(hmmResults.cor$cna, function(x){ nrow(x) }))
-      fracAltSub <- subClonalBinCount / unlist(lapply(hmmResults.cor$cna, function(x){ sum(x$copy.number != 2) }))
-      fracAltSub <- lapply(fracAltSub, function(x){if (is.na(x)){0}else{x}})
-      loglik[counter, "Frac_genome_subclonal"] <- paste0(signif(fracGenomeSub, digits=2), collapse=",")
-      loglik[counter, "Frac_CNA_subclonal"] <- paste0(signif(as.numeric(fracAltSub), digits=2), collapse=",")
+      subClonalBinCount <- unlist(lapply(hmmResults.cor$cna, function(x) {
+        sum(x$subclone.status)
+      }))
+      fracGenomeSub <- subClonalBinCount / unlist(lapply(hmmResults.cor$cna, function(x) {
+        nrow(x)
+      }))
+      fracAltSub <- subClonalBinCount / unlist(lapply(hmmResults.cor$cna, function(x) {
+        sum(x$copy.number != 2)
+      }))
+      fracAltSub <- lapply(fracAltSub, function(x) {
+        if (is.na(x)) {
+          0
+        } else {
+          x
+        }
+      })
+      loglik[counter, "Frac_genome_subclonal"] <- paste0(signif(fracGenomeSub, digits = 2), collapse = ",")
+      loglik[counter, "Frac_CNA_subclonal"] <- paste0(signif(as.numeric(fracAltSub), digits = 2), collapse = ",")
       loglik[counter, "init"] <- paste0("n", n, "-p", p)
       loglik[counter, "n_est"] <- paste(signif(hmmResults.cor$results$n[, iter], digits = 2), collapse = ",")
       loglik[counter, "phi_est"] <- paste(signif(hmmResults.cor$results$phi[, iter], digits = 4), collapse = ",")
@@ -805,39 +852,41 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
 
   ### SAVE R IMAGE ###
   save.image(outImage)
-  #save(tumour_copy, results, loglik, file=paste0(outDir,"/",id,".RData"))
+  # save(tumour_copy, results, loglik, file=paste0(outDir,"/",id,".RData"))
 
   ### SELECT SOLUTION WITH LARGEST LIKELIHOOD ###
   loglik <- loglik[!is.na(loglik$init), ]
-  if (estimateScPrevalence){ ## sort but excluding solutions with too large % subclonal
+  if (estimateScPrevalence) { ## sort but excluding solutions with too large % subclonal
     fracInd <- which(loglik[, "Frac_CNA_subclonal"] <= maxFracCNASubclone &
-                       loglik[, "Frac_genome_subclonal"] <= maxFracGenomeSubclone)
-    if (length(fracInd) > 0){ ## if there is a solution satisfying % subclonal
-      ind <- fracInd[order(loglik[fracInd, "loglik"], decreasing=TRUE)]
-    }else{ # otherwise just take largest likelihood
-      ind <- order(as.numeric(loglik[, "loglik"]), decreasing=TRUE)
+      loglik[, "Frac_genome_subclonal"] <= maxFracGenomeSubclone)
+    if (length(fracInd) > 0) { ## if there is a solution satisfying % subclonal
+      ind <- fracInd[order(loglik[fracInd, "loglik"], decreasing = TRUE)]
+    } else { # otherwise just take largest likelihood
+      ind <- order(as.numeric(loglik[, "loglik"]), decreasing = TRUE)
     }
-  }else{#sort by likelihood only
-    ind <- order(as.numeric(loglik[, "loglik"]), decreasing=TRUE)
+  } else { # sort by likelihood only
+    ind <- order(as.numeric(loglik[, "loglik"]), decreasing = TRUE)
   }
 
-  #new loop by order of solutions (ind)
+  # new loop by order of solutions (ind)
   outPlotFile <- paste0(outDir, "/", id, "/", id, "_genomeWide_all_sols")
-  for(i in 1:length(ind)) {
+  for (i in 1:length(ind)) {
     hmmResults.cor <- results[[ind[i]]]
     turnDevOff <- FALSE
     turnDevOn <- FALSE
-    if (i == 1){
+    if (i == 1) {
       turnDevOn <- TRUE
     }
-    if (i == length(ind)){
+    if (i == length(ind)) {
       turnDevOff <- TRUE
     }
-    plotGWSolution(hmmResults.cor, s=s, outPlotFile=outPlotFile, plotFileType="pdf",
-                   logR.column = "logR", call.column = "Corrected_Call",
-                   plotYLim=plotYLim, estimateScPrevalence=estimateScPrevalence,
-                   seqinfo = seqinfo,
-                   turnDevOn = turnDevOn, turnDevOff = turnDevOff, main=mainName[ind[i]])
+    plotGWSolution(hmmResults.cor,
+      s = s, outPlotFile = outPlotFile, plotFileType = "pdf",
+      logR.column = "logR", call.column = "Corrected_Call",
+      plotYLim = plotYLim, estimateScPrevalence = estimateScPrevalence,
+      seqinfo = seqinfo,
+      turnDevOn = turnDevOn, turnDevOff = turnDevOff, main = mainName[ind[i]]
+    )
   }
 
   hmmResults.cor <- results[[ind[1]]]
@@ -847,16 +896,22 @@ runIchorCNA <- function(WIG = NULL, NORMWIG = NULL, gcWig = NULL, mapWig = NULL,
   hmmResults.cor$results$chrXMedian <- gender$chrXMedian
   hmmResults.cor$results$coverage <- coverage
 
-  outputHMM(cna = hmmResults.cor$cna, segs = hmmResults.cor$results$segs,
-            results = hmmResults.cor$results, patientID = patientID, outDir=outDir)
+  outputHMM(
+    cna = hmmResults.cor$cna, segs = hmmResults.cor$results$segs,
+    results = hmmResults.cor$results, patientID = patientID, outDir = outDir
+  )
   outFile <- paste0(outDir, "/", patientID, ".params.txt")
+  print(hmmResults.cor)
   outputParametersToFile(hmmResults.cor, file = outFile)
 
   ## plot solutions for all samples
-  plotSolutions(hmmResults.cor, tumour_copy, chrs, outDir, numSamples=numSamples,
-                logR.column = "logR", call.column = "Corrected_Call",
-                plotFileType=plotFileType, plotYLim=plotYLim, seqinfo = seqinfo,
-                estimateScPrevalence=estimateScPrevalence, maxCN=maxCN)
+  plotSolutions(hmmResults.cor, tumour_copy, chrs, outDir,
+    numSamples = numSamples,
+    logR.column = "logR", call.column = "Corrected_Call",
+    plotFileType = plotFileType, plotYLim = plotYLim, seqinfo = seqinfo,
+    estimateScPrevalence = estimateScPrevalence, maxCN = maxCN
+  )
+
+  return(hmmResults.cor)
 
 }
-

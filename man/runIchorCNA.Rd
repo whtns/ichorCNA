@@ -40,7 +40,7 @@ runIchorCNA(
   includeHOMD = FALSE,
   txnE = 0.9999999,
   txnStrength = 1e+07,
-  plotFileType = pdf,
+  plotFileType = "pdf",
   plotYLim = c(-2, 2),
   outDir = "./",
   libdir = NULL

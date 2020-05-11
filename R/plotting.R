@@ -171,7 +171,11 @@ plotGWSolution <- function(hmmResults.cor, s, outPlotFile, plotFileType="pdf",
                     ploidy = ploidyAll, cytoBand=T, yrange=plotYLim, main=main)  #ylim for plot
     annotStr <- paste0("Tumor Fraction: ", signif(purityEst, digits=4), ", Ploidy: ", signif(ploidyEst, digits=3))
     if (!is.null(coverage)){
-      annotStr <- paste0(annotStr, ", Coverage: ", signif(coverage, digits=2))
+      print(coverage)
+      annoStr = "test"
+      # annotStr <- paste0(annotStr, ", Coverage: ", signif(coverage, digits=2))
+    } else {
+      annoStr = "test"
     }
     mtext(line=-1, annotStr, cex=1.5)
     if (estimateScPrevalence){

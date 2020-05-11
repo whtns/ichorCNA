@@ -86,7 +86,7 @@ getSeqInfo <- function(genomeBuild = "hg19", genomeStyle = "NCBI"){
 		seqinfo <- seqinfo(get(bsg))
 	}
 	seqlevelsStyle(seqinfo) <- genomeStyle
-	seqinfo <- keepSeqlevels(seqinfo, value = chrs)
+	# seqinfo <- keepSeqlevels(seqinfo, value = chrs)
 	#seqinfo <- cbind(seqnames = seqnames(seqinfo), as.data.frame(seqinfo))
 	return(seqinfo)
 }
